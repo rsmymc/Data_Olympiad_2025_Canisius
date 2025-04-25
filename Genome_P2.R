@@ -136,6 +136,91 @@ electricity_small %>%
 # Additionally, near-zero values and missing data likely reflect sensor issues rather than real usage.
 # Based on these insights, we will drop the rows in which it has 90% missing values.
 
+
+#Trying more things to see missingness by grouping
+
+# Step 1: Make building info table (site, type, tag)
+building_info <- tibble(
+  building = colnames(electricity_cleaned)[-1]  # exclude timestamp
+) %>%
+  separate(building, into = c("site", "type", "tag"), sep = "_", remove = FALSE)
+
+# Step 2: Calculate % of missing values per building
+missing_perc_building <- colMeans(is.na(electricity_cleaned[, -1]))
+missing_perc_building <- tibble(building = names(missing_perc_building),
+                                missing_perc = missing_perc_building)
+
+# Step 3: Combine info
+building_missing_summary <- building_info %>%
+  left_join(missing_perc_building, by = "building")
+
+
+#Grouping by site
+missing_by_site <- building_missing_summary %>%
+  group_by(site) %>%
+  summarise(avg_missing_perc = mean(missing_perc, na.rm = TRUE)) %>%
+  arrange(desc(avg_missing_perc))
+
+#Grouping by type
+missing_by_type <- building_missing_summary %>%
+  group_by(type) %>%
+  summarise(avg_missing_perc = mean(missing_perc, na.rm = TRUE)) %>%
+  arrange(desc(avg_missing_perc))
+
+# Missingness by Site
+ggplot(missing_by_site, aes(x = reorder(site, -avg_missing_perc), y = avg_missing_perc)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Average Missingness by Site",
+       x = "Site",
+       y = "Average % Missing Data") +
+  coord_flip()
+
+# Missingness by Building Type
+ggplot(missing_by_type, aes(x = reorder(type, -avg_missing_perc), y = avg_missing_perc)) +
+  geom_col(fill = "darkorange") +
+  labs(title = "Average Missingness by Building Type",
+       x = "Building Type",
+       y = "Average % Missing Data") +
+  coord_flip()
+
+
+#Swan column analysis
+# Step 1: Select only columns that start with "Swan"
+swan_columns <- electricity_cleaned %>%
+  select(starts_with("Swan"))
+
+# Step 2: Count the total NA values in these Swan columns
+total_na_swan <- sum(is.na(swan_columns))
+
+percent_na_swan <- colMeans(is.na(swan_columns)) * 100
+#View(percent_na_swan)
+
+
+#Plot
+tibble(building = names(percent_na_swan), missing_perc = percent_na_swan) %>%
+  ggplot(aes(x = reorder(building, -missing_perc), y = missing_perc)) +
+  geom_col(fill = "purple") +
+  coord_flip() +
+  labs(title = "Missing % for Swan Buildings",
+       x = "Building",
+       y = "% Missing")
+
+# Buildings under the Swan site were found to have approximately 50% missing electricity readings.
+# Given the high level of missingness, these buildings were excluded from the final dataset to ensure the integrity and reliability of the modeling process.
+# Based on this insights we decide to drop it
+
+# Remove all columns starting with "Swan"
+electricity_cleaned <- electricity_cleaned %>%
+  select(-starts_with("Swan"))
+
+# Meter sensor noise cleanup
+# Define a small threshold 
+small_value_threshold <- 0.01  # Anything below 0.01 will be treated as near-zero
+
+# Replace near-zero values with NA (excluding timestamp)
+electricity_cleaned[, -1] <- electricity_cleaned[, -1] %>%
+  mutate(across(everything(), ~ ifelse(!is.na(.x) & .x < small_value_threshold, NA, .x)))
+
 #Setting threshold
 threshold <- ncol(electricity_cleaned) * 0.9
 
@@ -143,4 +228,4 @@ electricity_final <- electricity_cleaned %>%
   filter(rowSums(is.na(.)) < threshold)
 
 # Save the cleaned dataset to CSV
-write_csv(electricity_final, "data/electricity_final_clean.csv")
+write_csv(electricity_final, "data/electricity_final_clean_V2.csv")
