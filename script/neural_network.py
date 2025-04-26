@@ -1,107 +1,132 @@
-import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import joblib
 import logging
-import os
+from pathlib import Path
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping
+from feature_engineering import apply_feature_level
 
-# === Setup output folder and logging ===
-OUTPUT_FOLDER = "output"
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# ---------------- CONFIG ----------------
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+FEATURE_LEVEL = 4
+BASE_DIR = Path(__file__).resolve().parent.parent
+INPUT_PATH = BASE_DIR / "data/processed/electricity_data_long_clean_reduced.csv"
 
-def build_model(name, input_dim, activation='relu', layers=[64, 32]):
-    logging.info(f"Building model: {name} | Activation: {activation} | Layers: {layers}")
-    model = Sequential()
-    model.add(Dense(layers[0], input_shape=(input_dim,), activation=activation))
-    model.add(Dropout(0.3))
-    for units in layers[1:]:
-        model.add(Dense(units, activation=activation))
-        model.add(Dropout(0.2))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(optimizer=Adam(learning_rate=0.001),
-                  loss='binary_crossentropy',
-                  metrics=['accuracy'])
+FEATURE_COLUMNS_BY_LEVEL = {
+    1: ['hour', 'dayofweek', 'month', 'is_weekend', 'building_id_encoded'],
+    2: ['hour', 'dayofweek', 'month', 'is_weekend', 'season_encoded', 'building_id_encoded'],
+    3: ['hour', 'dayofweek', 'month', 'is_weekend', 'season_encoded', 'building_id_encoded', 'sqm', 'year_built',
+        'primary_space_usage_encoded', 'latitude', 'longitude'],
+    4: ['hour', 'dayofweek', 'month', 'is_weekend', 'season_encoded', 'building_id_encoded',
+        'sqm', 'year_built', 'primary_space_usage_encoded', 'latitude', 'longitude',
+        'airTemperature', 'cloudCoverage', 'dewTemperature', 'precipDepth1HR',
+        'precipDepth6HR', 'seaLvlPressure', 'windDirection', 'windSpeed']
+}
+
+# -----------------------------------------
+
+def encode_building_id(df):
+    logging.info("Encoding building_id as numeric labels...")
+    le = LabelEncoder()
+    df['building_id_encoded'] = le.fit_transform(df['building_id'])
+    return df, le
+
+def build_neural_network(input_dim):
+    model = Sequential([
+        Dense(64, activation='relu', input_shape=(input_dim,)),
+        Dense(32, activation='relu'),
+        Dense(1)
+    ])
+
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
     return model
 
-def train_neural_network_variants(X, y):
-    logging.info("Starting training of neural network variants...")
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+def train_model(df, feature_level):
+    feature_cols = FEATURE_COLUMNS_BY_LEVEL.get(feature_level)
+    feature_cols = [col for col in feature_cols if col in df.columns]
+    X = df[feature_cols]
+    y = df['consumption_kwh']
 
-    configs = [
-        ("Model_A_ReLU_2-layer", 'relu', [64, 32]),
-        ("Model_B_tanh_2-layer", 'tanh', [64, 32]),
-        ("Model_C_ReLU_3-layer_deep", 'relu', [128, 64, 32]),
-    ]
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
 
-    for name, act_fn, layer_config in configs:
-        logging.info(f"--- Training {name} ---")
-        model = build_model(name, input_dim=X.shape[1], activation=act_fn, layers=layer_config)
-        early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+    X_train_full, X_test, y_train_full, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train_full, y_train_full, test_size=0.2, random_state=42)
 
-        history = model.fit(X_train, y_train,
-                            validation_split=0.2,
-                            epochs=30,
-                            batch_size=512,
-                            callbacks=[early_stop],
-                            verbose=0)
+    model = build_neural_network(input_dim=X_train.shape[1])
+    history = model.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        epochs=50,
+        batch_size=32,
+        verbose=1
+    )
 
-        logging.info(f"{name} training complete.")
+    logging.info("Evaluating Neural Network model...")
+    y_pred = model.predict(X_test).flatten()
 
-        y_proba = model.predict(X_test)
-        y_pred = (y_proba > 0.5).astype("int32")
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2 = r2_score(y_test, y_pred)
 
-        report = classification_report(y_test, y_pred)
-        logging.info(f"{name} Classification Report:\n{report}")
-        cm = confusion_matrix(y_test, y_pred)
-        logging.info(f"{name} Confusion Matrix:\n{cm}")
+    logging.info(f"Feature Level {FEATURE_LEVEL} - MAE: {mae:.4f}")
+    logging.info(f"Feature Level {FEATURE_LEVEL} - RMSE: {rmse:.4f}")
+    logging.info(f"Feature Level {FEATURE_LEVEL} - R2 Score: {r2:.4f}")
 
-        ConfusionMatrixDisplay(confusion_matrix=cm).plot(cmap='Blues')
-        plt.title(f"{name} - Confusion Matrix")
-        save_plot(f"confusion_{name}.png")
+    predictions_df = pd.DataFrame({
+        "y_true": y_test.values,
+        "y_pred": y_pred
+    })
 
-        plot_roc_curve_nn(y_test, y_proba, title=f"{name} - ROC Curve", filename=f"roc_{name}.png")
+    return model, scaler, mae, rmse, r2, predictions_df
 
-        plt.figure(figsize=(10, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(history.history['loss'], label='Train Loss')
-        plt.plot(history.history['val_loss'], label='Val Loss')
-        plt.title(f'{name} - Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
+def save_training_outputs(model, building_id_encoder, scaler, predictions_df, feature_level, mae, rmse, r2):
+    models_dir = BASE_DIR / "models"
+    results_dir = BASE_DIR / "results"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
-        plt.subplot(1, 2, 2)
-        plt.plot(history.history['accuracy'], label='Train Accuracy')
-        plt.plot(history.history['val_accuracy'], label='Val Accuracy')
-        plt.title(f'{name} - Accuracy')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.legend()
+    model.save(models_dir / f"neural_network_model_level{feature_level}.h5")
+    joblib.dump(building_id_encoder, models_dir / f"building_id_encoder_level{feature_level}.pkl")
+    joblib.dump(scaler, models_dir / f"scaler_level{feature_level}.pkl")
+    predictions_df.to_csv(results_dir / f"neural_network_predictions_level{feature_level}.csv", index=False)
 
-        save_plot(f"metrics_{name}.png")
+    experiment_path = results_dir / "neural_network_training_log.csv"
+    experiment_entry = pd.DataFrame([{
+        "feature_level": feature_level,
+        "mae": mae,
+        "rmse": rmse,
+        "r2": r2
+    }])
+    if experiment_path.exists():
+        existing_data = pd.read_csv(experiment_path)
 
-        model_path = os.path.join(OUTPUT_FOLDER, f"{name}.keras")
-        model.save(model_path)
-        logging.info(f"{name} model saved to {model_path}")
+        if feature_level in existing_data['feature_level'].values:
+            existing_data.loc[existing_data['feature_level'] == feature_level, ['mae', 'rmse', 'r2']] = [mae, rmse, r2]
+        else:
+            existing_data = pd.concat([existing_data, experiment_entry], ignore_index=True)
 
-def save_plot(filename):
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_FOLDER, filename))
-    plt.close()
+        existing_data.to_csv(experiment_path, index=False)
+    else:
+        experiment_entry.to_csv(experiment_path, index=False)
 
-def plot_roc_curve_nn(y_true, y_proba, title="ROC Curve", filename=None):
-    fpr, tpr, _ = roc_curve(y_true, y_proba)
-    roc_auc = auc(fpr, tpr)
-    plt.figure(figsize=(6, 5))
-    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
-    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title(title)
-    plt.legend(loc="lower right")
-    if filename:
-        save_plot(filename)
+    logging.info(f"Saved all outputs for Level {feature_level}")
+
+def main():
+    logging.info(f"Loading electricity data from: {INPUT_PATH}")
+    df = pd.read_csv(INPUT_PATH, parse_dates=['timestamp'])
+
+    df = apply_feature_level(df, level=FEATURE_LEVEL)
+    df, building_id_encoder = encode_building_id(df)
+
+    model, scaler, mae, rmse, r2, predictions_df = train_model(df, FEATURE_LEVEL)
+
+    save_training_outputs(model, building_id_encoder, scaler, predictions_df, FEATURE_LEVEL, mae, rmse, r2)
+
+if __name__ == "__main__":
+    main()
