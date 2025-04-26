@@ -234,17 +234,68 @@ building_summary <- tibble(
   sd_usage = building_sd
 )
 
+# === Identify which types of buildings consume the most energy ===
+
+# Join building_summary with building_info (site, type, tag already separated earlier)
+building_summary_full <- building_info %>%
+  left_join(building_summary, by = "building")
+
+# Group by building type and calculate average usage
+type_summary <- building_summary_full %>%
+  group_by(type) %>%
+  summarise(avg_energy_usage = mean(mean_usage, na.rm = TRUE)) %>%
+  arrange(desc(avg_energy_usage))
+
+type_summary <- type_summary %>%
+  filter(type != "unknown")
+
+# Plot average energy usage by building type with gradient and highest on top
+ggplot(type_summary, aes(x = reorder(type, avg_energy_usage), y = avg_energy_usage, fill = avg_energy_usage)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+  labs(
+    title = "Average Energy Usage by Building Type",
+    subtitle = "Darker Colors Represent Higher Energy Consumption",
+    x = "Building Type",
+    y = "Average Meter Reading (kWh)",
+    fill = "Avg Usage"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 14, margin = margin(b = 10)),
+    axis.title = element_text(face = "bold"),
+    legend.position = "right",
+    panel.grid.major.y = element_blank()
+  )
+
+
 # --- Plot Top 20 Highest Usage Buildings ---
 top20_buildings <- building_summary %>%
   arrange(desc(mean_usage)) %>%
   slice_head(n = 20)
 
-ggplot(top20_buildings, aes(x = reorder(building, mean_usage), y = mean_usage)) +
-  geom_col(fill = "seagreen") +
+ggplot(top20_buildings, aes(x = reorder(building, mean_usage), y = mean_usage, fill = mean_usage)) +
+  geom_col() +
   coord_flip() +
-  labs(title = "Top 20 Buildings by Abnormal Energy Usage",
-       x = "Building",
-       y = "Average Meter Reading (kWh)")
+  scale_fill_gradient(low = "skyblue", high = "darkblue") +    # Gradient from low to high
+  labs(
+    title = "Top 20 Buildings by Abnormal Energy Usage",
+    subtitle = "Higher Energy Users Highlighted with Darker Colors",
+    x = "Building",
+    y = "Average Meter Reading (kWh)",
+    fill = "Average Usage"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 14, margin = margin(b = 10)),
+    axis.title = element_text(face = "bold"),
+    legend.position = "right",
+    panel.grid.major.y = element_blank()  # Clean up horizontal gridlines
+  )
+
 
 # suggesting possible energy waste by timestamp
 # Step 1: Create total energy usage per timestamp
@@ -263,14 +314,43 @@ usage_by_hour <- electricity_time_avg %>%
   summarise(avg_hourly_usage = mean(avg_usage, na.rm = TRUE))
 
 ggplot(usage_by_hour, aes(x = hour, y = avg_hourly_usage)) +
-  geom_col(fill = "steelblue") +
+  geom_line(color = "royalblue", size = 1.2) +               
+  geom_point(color = "darkred", size = 2) +                  
   labs(title = "Average Energy Usage by Hour of Day",
-       x = "Hour",
-       y = "Average Meter Reading")
+       subtitle = "Hourly Energy Consumption Trends",
+       x = "Hour of Day",
+       y = "Average Meter Reading (kWh)") +
+  theme_minimal(base_size = 14) +                           
+  scale_x_continuous(breaks = 0:23) +                        
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 14, margin = margin(b = 10)),
+    axis.title = element_text(face = "bold")
+  )
 
 # Average energy usage was calculated by hour of day and day type (weekday/weekend).
 # Analysis revealed that certain buildings continue consuming high amounts of energy during off-hours (e.g., nighttime and weekends),
 # suggesting possible energy waste. These insights can support operational changes to improve efficiency
+
+# === Analyze impact of external factor: Temperature (Weather Data) ===
+
+# Merge electricity_time_avg (timestamp, avg_usage) with weather (timestamp, temperature)
+# Assuming weather has a "timestamp" and "temperature" column
+electricity_weather <- electricity_time_avg %>%
+  left_join(weather, by = "timestamp")
+
+# Filter to remove missing airTemperature or avg_usage
+electricity_weather_clean <- electricity_weather %>%
+  filter(!is.na(airTemperature), !is.na(avg_usage))
+
+# Plot: Energy Usage vs Air Temperature
+ggplot(electricity_weather_clean, aes(x = airTemperature, y = avg_usage)) +
+  geom_point(alpha = 0.3, color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Relationship between Energy Usage and Air Temperature",
+       x = "Air Temperature (°C or °F)",
+       y = "Average Meter Reading (kWh)")
+
 
 # Recalculate electricity_final after all cleaning is done
 threshold <- ncol(electricity_cleaned) * 0.9
@@ -280,3 +360,4 @@ electricity_final <- electricity_cleaned %>%
 
 # Save the cleaned dataset to CSV
 write_csv(electricity_final, "data/electricity_final_clean_V2.csv")
+
