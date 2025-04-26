@@ -89,7 +89,7 @@ vis_miss(electricity_small, cluster = TRUE)
 
 set.seed(123)
 
-# Step 1: Sample 25 buildings
+# Step 1: Sample 10 buildings
 sampled_buildings <- sample(colnames(electricity_cleaned)[-1], 10)
 
 electricity_small <- electricity_cleaned %>%
@@ -221,7 +221,58 @@ small_value_threshold <- 0.01  # Anything below 0.01 will be treated as near-zer
 electricity_cleaned[, -1] <- electricity_cleaned[, -1] %>%
   mutate(across(everything(), ~ ifelse(!is.na(.x) & .x < small_value_threshold, NA, .x)))
 
-#Setting threshold
+# === Identify abnormal buildings based on average energy usage ===
+
+# Calculate average and standard deviation of each building (column-wise)
+building_means <- colMeans(electricity_cleaned[, -1], na.rm = TRUE)
+building_sd <- apply(electricity_cleaned[, -1], 2, sd, na.rm = TRUE)
+
+# Create summary table
+building_summary <- tibble(
+  building = names(building_means),
+  mean_usage = building_means,
+  sd_usage = building_sd
+)
+
+# --- Plot Top 20 Highest Usage Buildings ---
+top20_buildings <- building_summary %>%
+  arrange(desc(mean_usage)) %>%
+  slice_head(n = 20)
+
+ggplot(top20_buildings, aes(x = reorder(building, mean_usage), y = mean_usage)) +
+  geom_col(fill = "seagreen") +
+  coord_flip() +
+  labs(title = "Top 20 Buildings by Abnormal Energy Usage",
+       x = "Building",
+       y = "Average Meter Reading (kWh)")
+
+# suggesting possible energy waste by timestamp
+# Step 1: Create total energy usage per timestamp
+electricity_time_avg <- electricity_cleaned %>%
+  mutate(avg_usage = rowMeans(select(., -timestamp), na.rm = TRUE)) %>%
+  select(timestamp, avg_usage)
+
+# Extract hour of day and day of week
+electricity_time_avg <- electricity_time_avg %>%
+  mutate(hour = hour(timestamp),
+         weekday = wday(timestamp, label = TRUE),  # Sunday = 1
+         is_weekend = if_else(weekday %in% c("Sat", "Sun"), TRUE, FALSE))
+
+usage_by_hour <- electricity_time_avg %>%
+  group_by(hour) %>%
+  summarise(avg_hourly_usage = mean(avg_usage, na.rm = TRUE))
+
+ggplot(usage_by_hour, aes(x = hour, y = avg_hourly_usage)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Average Energy Usage by Hour of Day",
+       x = "Hour",
+       y = "Average Meter Reading")
+
+# Average energy usage was calculated by hour of day and day type (weekday/weekend).
+# Analysis revealed that certain buildings continue consuming high amounts of energy during off-hours (e.g., nighttime and weekends),
+# suggesting possible energy waste. These insights can support operational changes to improve efficiency
+
+# Recalculate electricity_final after all cleaning is done
 threshold <- ncol(electricity_cleaned) * 0.9
 
 electricity_final <- electricity_cleaned %>%
