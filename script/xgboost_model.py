@@ -67,13 +67,8 @@ def train_xgboost(df, feature_level):
     )
     model.fit(X_train, y_train)
 
-    logging.info("Evaluating model...")
+    logging.info("Evaluating XGBoost model...")
     preds = model.predict(X_test)
-
-    predictions_df = pd.DataFrame({
-        "y_true": y_test.values,
-        "y_pred": preds
-    })
 
     mae = mean_absolute_error(y_test, preds)
     rmse = np.sqrt(mean_squared_error(y_test, preds))
@@ -82,6 +77,11 @@ def train_xgboost(df, feature_level):
     logging.info(f"Feature Level {feature_level} - MAE: {mae:.4f}")
     logging.info(f"Feature Level {feature_level} - RMSE: {rmse:.4f}")
     logging.info(f"Feature Level {feature_level} - R2 Score: {r2:.4f}")
+
+    predictions_df = pd.DataFrame({
+        "y_true": y_test.values,
+        "y_pred": preds
+    })
 
     return model, mae, rmse, r2, predictions_df
 
@@ -113,7 +113,14 @@ def save_training_outputs(model, building_id_encoder, predictions_df, feature_le
         "r2": r2
     }])
     if experiment_path.exists():
-        experiment_entry.to_csv(experiment_path, mode='a', header=False, index=False)
+        existing_data = pd.read_csv(experiment_path)
+
+        if feature_level in existing_data['feature_level'].values:
+            existing_data.loc[existing_data['feature_level'] == feature_level, ['mae', 'rmse', 'r2']] = [mae, rmse, r2]
+        else:
+            existing_data = pd.concat([existing_data, experiment_entry], ignore_index=True)
+
+        existing_data.to_csv(experiment_path, index=False)
     else:
         experiment_entry.to_csv(experiment_path, index=False)
 

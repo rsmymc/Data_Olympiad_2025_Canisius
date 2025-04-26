@@ -119,7 +119,7 @@ def plot_error_distribution(predictions_path=PREDICTIONS_PATH, level=None, model
 
 
 if __name__ == "__main__":
-    #plot_feature_importance(level=None)
-    #plot_experiment_results()
-    #plot_actual_vs_predicted()
+    plot_feature_importance(level=None)
+    plot_experiment_results()
+    plot_actual_vs_predicted()
     plot_error_distribution()
