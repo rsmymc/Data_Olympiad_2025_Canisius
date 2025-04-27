@@ -37,7 +37,7 @@ including XGBoost and Neural Networks. It also simulates energy savings and sens
 ## 📈 Project Flow Overview
 
 <details open>
-<summary>Click to expand Project Flowchart</summary>
+<summary>Click to expand/collapse Project Flowchart</summary>
 
 ```mermaid
 flowchart TD
