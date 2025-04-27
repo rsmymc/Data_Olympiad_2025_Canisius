@@ -1,7 +1,6 @@
 # Energy Consumption Forecasting and Analysis
 
-This project models and analyzes building energy consumption using machine learning techniques, 
-including XGBoost and Neural Networks. It also simulates energy savings and sensitivity to external factors like temperature increases.
+This project developed a building energy consumption forecasting model using XGBoost, selected as the final model after comparative testing against Neural Networks. In addition to predictive modeling, the analysis simulated energy savings scenarios and assessed sensitivity to external environmental factors, including temperature increases.
 
 ---
 
@@ -53,6 +52,18 @@ flowchart TD
 ```
 </details>
 
+## 📚 Dataset
+
+- **Name**: Building Data Genome Project 2
+- **Source**: [Kaggle Page](https://www.kaggle.com/datasets/claytonmiller/buildingdatagenomeproject2)
+- **Description**: Hourly energy consumption readings for 1,636 commercial buildings across North America and Europe (2016–2017).
+
+**Important Note:**  
+Due to GitHub file size limitations, the `electricity.csv` file is not included in the `data/raw/` folder.  
+To run the project:
+
+1. Download `electricity.csv` from the [Kaggle dataset page](https://www.kaggle.com/datasets/claytonmiller/buildingdatagenomeproject2).
+2. Place it manually inside the `data/raw/` directory:
 
 ## 🚀 Setup Instructions
 
