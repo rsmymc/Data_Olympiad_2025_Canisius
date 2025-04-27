@@ -73,7 +73,7 @@ or use **Makefile**:
 ```bash
 make all
 ```
-
+3. **Alternatively, Run the Full Pipeline in Jupyter Notebook**
 ---
 
 ## 🧠 Core Scripts
@@ -156,7 +156,7 @@ Explains which features most impacted model predictions.
 ## ✨ Future Work
 
 - Incorporate weather forecast data for future predictions
-- !!!ADD!!!
+- Further strain-test of XGBoost model by analyzing 2016+2017 as training and carrying out predictions/test on totally unforeseen data of 2018
 
 ---
 
