@@ -348,7 +348,7 @@ ggplot(electricity_weather_clean, aes(x = airTemperature, y = avg_usage)) +
   geom_point(alpha = 0.3, color = "blue") +
   geom_smooth(method = "lm", se = FALSE, color = "red") +
   labs(title = "Relationship between Energy Usage and Air Temperature",
-       x = "Air Temperature (°C or °F)",
+       x = "Air Temperature (°C)",
        y = "Average Meter Reading (kWh)")
 
 
