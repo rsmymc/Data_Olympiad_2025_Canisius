@@ -385,29 +385,29 @@ if __name__ == "__main__":
     y_sample = y_train.loc[X_sample.index]
     y_pred_sample = xgb_model.predict(X_sample)
 
-    # plot_actual_vs_predicted(xgb_y_true, xgb_y_pred, model_name="XGBoost", save_path=plots_dir_xgb / "actual_vs_predicted.png")
-    # plot_actual_vs_predicted(nn_y_true, nn_y_preds, model_name="Neural Network", save_path=plots_dir_nn / "actual_vs_predicted.png")
-    # plot_model_comparison(xgb_y_true, xgb_y_pred, nn_y_preds, label1="XGBoost", label2="Neural Network", save_path=plots_dir_cmp / "xgb_vs_nn_comparison.png")
-    # plot_shap_summary(xgb_model, X_sample, model_name="XGBoost", save_path=plots_dir_xgb / "shap_summary.png")
-    # plot_residuals_sample(y_sample, y_pred_sample, model_name="XGBoost Sampled", save_dir=plots_dir_xgb)
+    plot_actual_vs_predicted(xgb_y_true, xgb_y_pred, model_name="XGBoost", save_path=plots_dir_xgb / "actual_vs_predicted.png")
+    plot_actual_vs_predicted(nn_y_true, nn_y_preds, model_name="Neural Network", save_path=plots_dir_nn / "actual_vs_predicted.png")
+    plot_model_comparison(xgb_y_true, xgb_y_pred, nn_y_preds, label1="XGBoost", label2="Neural Network", save_path=plots_dir_cmp / "xgb_vs_nn_comparison.png")
+    plot_shap_summary(xgb_model, X_sample, model_name="XGBoost", save_path=plots_dir_xgb / "shap_summary.png")
+    plot_residuals_sample(y_sample, y_pred_sample, model_name="XGBoost Sampled", save_dir=plots_dir_xgb)
 
-    #savings_summary = simulate_energy_savings(xgb_model, X_test)
-    #savings_summary.to_csv(reports_dir / "savings_summary.csv", index=False)
+    savings_summary = simulate_energy_savings(xgb_model, X_test)
+    savings_summary.to_csv(reports_dir / "savings_summary.csv", index=False)
 
     # Set Predict log values
-    # y_pred_log = xgb_model.predict(X_test)
-    # # Inverse log transform for real-world kWh
-    # y_pred_kwh = np.expm1(y_pred_log)
-    # # Reattach building_id to X_test for analysis
-    # X_test_with_id = X_test.copy()
-    # X_test_with_id['building_id'] = full_df_daily.loc[X_test.index, 'building_id'].values
-    # top_underperformers = detect_underperforming_buildings(X_test_with_id, y_test, y_pred_log)
+    y_pred_log = xgb_model.predict(X_test)
+    # Inverse log transform for real-world kWh
+    y_pred_kwh = np.expm1(y_pred_log)
+    # Reattach building_id to X_test for analysis
+    X_test_with_id = X_test.copy()
+    X_test_with_id['building_id'] = full_df_daily.loc[X_test.index, 'building_id'].values
+    top_underperformers = detect_underperforming_buildings(X_test_with_id, y_test, y_pred_log)
 
-    # weather_contribution = plot_weather_feature_contribution(
-    #     xgb_model,
-    #     X_train,
-    #     save_path=plots_dir_xgb / "weather_contribution.png"
-    # )
+    weather_contribution = plot_weather_feature_contribution(
+        xgb_model,
+        X_train,
+        save_path=plots_dir_xgb / "weather_contribution.png"
+    )
 
     monthly_energy = plot_seasonal_energy_trends(full_df_daily, save_path=plots_dir_xgb / "seasonal_energy_trends.png")
 
@@ -418,5 +418,5 @@ if __name__ == "__main__":
         summer_temp_increase=8,
         cost_per_kwh=0.12
     )
-    summer_simulation_8c_result.to_csv(reports_dir / "Cooling Load Stress Test Summary.csv", index=False)
+    summer_simulation_8c_result.to_csv(reports_dir / "cooling_load_stress_test_summary.csv", index=False)
     logging.info(f"Saved Summer Impact Simulation")

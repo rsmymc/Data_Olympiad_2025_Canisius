@@ -50,7 +50,6 @@ def main():
     processed_dir = base_dir / "data/processed"
     models_dir = base_dir / "models"
     reports_dir = base_dir / "reports"
-    plots_dir = base_dir / "plots"
 
     daily_data_path = processed_dir / "electricity_clean_long.csv"
     full_df_daily = pd.read_csv(daily_data_path, parse_dates=['date'])
