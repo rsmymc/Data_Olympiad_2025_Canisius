@@ -10,6 +10,23 @@ output: html_document
 This project focuses on cleaning and analyzing the electricity consumption data provided by the Building Data Genome Project 2.  
 Our objective is to preprocess the raw datasets, handle missing values, detect anomalies, and explore patterns related to building energy usage.
 
+# Data Cleaning Summary
+The electricity dataset required significant preprocessing to ensure its integrity for analysis.
+Initial inspection revealed timestamp inconsistencies, missing readings, and a large number of zero and near-zero values likely resulting from sensor errors.
+To address these issues, timestamps were corrected by inferring missing values based on surrounding data points.
+Zero and near-zero meter readings were replaced with NA to avoid biasing energy consumption trends.
+Buildings associated with the Swan site, which exhibited over 50% missing data, were removed to maintain dataset quality.
+Finally, rows with excessive missingness were filtered out to prepare a clean and robust dataset for downstream analysis.
+
+# Exploratory Data Analysis (EDA) Summary
+
+The cleaned dataset was explored to uncover usage patterns and insights.
+Missing data patterns were visualized, revealing that missingness was sporadic across buildings and timestamps, likely due to intermittent sensor failures rather than systematic issues.
+Analysis of average energy usage identified that health and educational buildings consumed the most electricity on average.
+Hourly trends showed distinct daily cycles, with energy usage peaking during business hours and declining overnight.
+Further analysis revealed a positive correlation between outdoor air temperature and electricity consumption, suggesting increased cooling demands during warmer periods.
+These insights provide a foundational understanding of building energy behavior and external influences on consumption.
+
 # Libraries and Data Loading
 
 ```{r setup, include=TRUE}
@@ -303,6 +320,6 @@ write_csv(electricity_final, "data/electricity_final_clean_V2.csv")
 
 # Conclusion
 
-The data cleaning process successfully addressed timestamp issues, sensor noise, and missing values.
-Through exploratory data analysis, we identified high-energy-consuming buildings and observed significant seasonal and daily patterns affecting energy usage.
-External temperature was found to correlate with increased electricity consumption, likely due to cooling demands during warmer months.
+The initial data cleaning process successfully resolved major data integrity challenges, including timestamp inconsistencies, sensor noise, and missing values. Buildings with excessive missing electricity readings were excluded, while critical metadata fields such as building size (sqm) and construction year (yearbuilt) were imputed using median values to preserve dataset consistency without introducing bias. Environmental variables from the weather dataset, including temperature, pressure, and wind speed, were also median-imputed to maintain a coherent time series. Negative or invalid entries, particularly in precipitation fields, were treated as missing and corrected appropriately. Careful attention was also given to the skewed distribution of meter readings, ensuring that zero values and extreme outliers were addressed thoughtfully to support later feature engineering and modeling phases.
+
+Following data cleaning, exploratory data analysis provided additional insights into energy consumption patterns across the portfolio. High-energy-consuming buildings were identified, and strong seasonal and daily usage trends were observed, with energy demand peaking during business hours and warmer months. External temperature was found to positively correlate with electricity consumption, likely driven by increased cooling loads. These early findings helped guide subsequent feature engineering choices and informed the design of the predictive modeling approach.
