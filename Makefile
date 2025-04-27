@@ -24,7 +24,7 @@ train_nn:
 
 # Plotting
 plots:
-	$(PYTHON) plots.py
+	$(PYTHON) analyzing.py
 
 # Full pipeline
 all: install data_cleaning feature_engineering train_xgb train_nn plots
