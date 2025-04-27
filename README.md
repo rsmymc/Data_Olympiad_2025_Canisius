@@ -20,19 +20,34 @@ including XGBoost and Neural Networks. It also simulates energy savings and sens
 │   ├── model_comparison/
 ├── scripts/             # All Python scripts
 │   ├── utils.py                # Utility functions (splitting, loading)
-│   ├── Genome_P2.R             #
-│   ├── data_cleaning.py        # Load raw data, clean missing values, process metadata 
-│   ├── feature_engineering.py  # Create datetime features, lag/rolling features, merge datasets
-│   ├── xgboost_modelling.py
-│   ├── neural_network_modelling.py
+│   ├── Genome_P2.R             # Exploratory data analysis and visualization (in R)
+│   ├── data_cleaning.py        # Data cleaning and preprocessing 
+│   ├── feature_engineering.py  # Feature creation (lags, datetime, rolling stats), merge datasets
+│   ├── xgboost_modelling.py    # XGBoost model training and evaluation
+│   ├── neural_network_modelling.py # Neural Network model training and evaluation
 │   ├── analysis.py             # For visualization and analysis
-│   ├── runner.py               # Full pipeline runner script (interactive menu)
+│   ├── runner.py               # Interactive menu to run full pipeline
+│   ├── Race to Energy Efficiency.ipynb # Full notebook flow
 ├── Makefile            # Quick automation commands
-├── requirements.txt    # Required packages
+├── requirements.txt    # Python package requirements
 └── README.md           # Project overview
 ```
 
 ---
+## 📈 Project Flow Overview
+
+```mermaid
+flowchart TD
+    A([Raw Data - CSV]) --> B([Data Cleaning])
+    B --> C([Feature Engineering])
+    C --> D([Model Training - XGBoost/Neural Network])
+    D --> E([Model Evaluation - RMSE, MAE, R])
+    E --> F([Visualization & Analysis - SHAP, Residuals, Trends])
+    F --> G([Simulations - Energy Savings, Hotter Summer Impact])
+
+    style A fill:#f9f,stroke:#333,stroke-width:1px
+    style G fill:#bbf,stroke:#333,stroke-width:1px
+```
 
 ## 🚀 Setup Instructions
 
@@ -60,7 +75,7 @@ make all
 
 | Script                        | Purpose                                                                           |
 |:------------------------------|:----------------------------------------------------------------------------------|
-| `Genome_P2.R`                 | !!!Explanantation!!!                                                              |
+| `Genome_P2.R`                 | Exploratory Data Analysis (EDA) using R, including visualization                                                           |
 | `data_cleaning.py`            | Load raw data, clean missing values, process metadata                             |
 | `feature_engineering.py`      | Create datetime features, lag/rolling features, merge datasets                    |
 | `xgboost_modelling.py`        | Train XGBoost model, evaluate, save predictions                                   |
