@@ -131,8 +131,6 @@ Explains which features most impacted model predictions.
 
 ![Seasonal Energy Trends](plots/xgboost/seasonal_energy_trends.png)
 
-Projects the impact of an 8°C temperature rise on energy consumption.
-
 </details>
 
 
