@@ -1,0 +1,308 @@
+---
+title: "EDA_Olympiad_Canisius_2025"
+author: "CipherSci"
+date: "2025-04-26"
+output: html_document
+---
+
+# Introduction
+
+This project focuses on cleaning and analyzing the electricity consumption data provided by the Building Data Genome Project 2.  
+Our objective is to preprocess the raw datasets, handle missing values, detect anomalies, and explore patterns related to building energy usage.
+
+# Libraries and Data Loading
+
+```{r setup, include=TRUE}
+rm(list = ls())
+
+library(tidyverse)
+library(lubridate)
+library(naniar)
+library(dplyr)
+library(ggplot2)
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+electricity <- read_csv("data/electricity.csv")
+metadata <- read_csv("data/metadata.csv")
+weather <- read_csv("data/weather.csv")
+```
+# Initial Data Inspection
+
+We first explore the dimensions of the datasets and identify potential issues such as missing timestamps or invalid zero values.
+```{r}
+dim(electricity)
+colnames(electricity)[1:10]
+colSums(is.na(electricity[, 1:10]))
+```
+
+We also review the first few timestamps:
+```{r}
+head(electricity$timestamp, 20)
+```
+
+
+# Data Cleaning Steps
+
+## Timestamp Correction
+
+While converting timestamps, it was found that 731 rows had NA timestamps, mostly related to missing 24-hour records. These were imputed by inferring from neighboring timestamps.
+
+```{r}
+bad_timestamps <- electricity$timestamp[is.na(ymd_hms(electricity$timestamp))]
+length(bad_timestamps)
+unique(bad_timestamps)
+
+electricity <- electricity %>%
+  mutate(timestamp = ymd_hms(timestamp))
+
+na_time_rows <- which(is.na(electricity$timestamp))
+electricity_fixed <- electricity
+
+for (i in na_time_rows) {
+  if (i > 1 && !is.na(electricity_fixed$timestamp[i - 1])) {
+    electricity_fixed$timestamp[i] <- electricity_fixed$timestamp[i - 1] + hours(1)
+  } else if (i < nrow(electricity_fixed) && !is.na(electricity_fixed$timestamp[i + 1])) {
+    electricity_fixed$timestamp[i] <- electricity_fixed$timestamp[i + 1] - hours(1)
+  } else {
+    electricity_fixed$timestamp[i] <- NA
+  }
+}
+
+sum(is.na(electricity_fixed$timestamp))
+```
+
+# Zero Value Replacement
+
+Zero meter readings, considered implausible, were replaced with NA to avoid biasing the analysis.
+
+```{r}
+electricity_cleaned <- electricity_fixed
+electricity_cleaned[, -1] <- electricity_cleaned[, -1] %>%
+  mutate(across(everything(), ~ ifelse(.x == 0, NA, .x)))
+```
+
+# Sampling for Missing Data Visualization
+
+To visualize missing patterns without overwhelming memory, 30 buildings and 2500 timestamps were randomly sampled.
+
+```{r}
+set.seed(123)
+
+few_buildings <- sample(colnames(electricity_cleaned)[-1], 30)
+electricity_small <- electricity_cleaned %>%
+  select(timestamp, all_of(few_buildings)) %>%
+  slice_sample(n = 2500)
+
+vis_miss(electricity_small, cluster = TRUE)
+```
+
+The missingness heatmap reveals that approximately 11% of the sampled electricity meter readings are missing.
+Missing values appear scattered across different timestamps and building sites, with no single dominant pattern.
+This suggests that data loss is likely due to sensor outages or communication errors rather than systematic gaps.
+
+# Missing Values Analysis
+
+We explored missing values across sites and building types.
+
+```{r}
+# Build building info
+building_info <- tibble(building = colnames(electricity_cleaned)[-1]) %>%
+  separate(building, into = c("site", "type", "tag"), sep = "_", remove = FALSE)
+
+missing_perc_building <- colMeans(is.na(electricity_cleaned[, -1]))
+missing_perc_building <- tibble(building = names(missing_perc_building),
+                                missing_perc = missing_perc_building)
+
+building_missing_summary <- building_info %>%
+  left_join(missing_perc_building, by = "building")
+
+missing_by_site <- building_missing_summary %>%
+  group_by(site) %>%
+  summarise(avg_missing_perc = mean(missing_perc, na.rm = TRUE)) %>%
+  arrange(desc(avg_missing_perc))
+
+missing_by_type <- building_missing_summary %>%
+  group_by(type) %>%
+  summarise(avg_missing_perc = mean(missing_perc, na.rm = TRUE)) %>%
+  arrange(desc(avg_missing_perc))
+
+# Plot Missingness by Site 
+ggplot(missing_by_site, aes(x = reorder(site, avg_missing_perc), y = avg_missing_perc)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Average Missingness by Site",
+       x = "Site",
+       y = "Average % Missing Data") +
+  theme_minimal()
+
+# Plot Missingness by Building Type 
+ggplot(missing_by_type, aes(x = reorder(type, -avg_missing_perc), y = avg_missing_perc)) +
+  geom_col(fill = "darkorange") +
+  labs(title = "Average Missingness by Building Type",
+       x = "Building Type",
+       y = "Average % Missing Data") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
+```
+
+
+
+# Dropping Swan Columns
+
+Buildings under the Swan site had nearly 50% missing data and were excluded.
+```{r}
+swan_columns <- electricity_cleaned %>%
+  select(starts_with("Swan"))
+
+total_na_swan <- sum(is.na(swan_columns))
+percent_na_swan <- colMeans(is.na(swan_columns)) * 100
+
+# Plot Missingness in Swan
+
+tibble(building = names(percent_na_swan), missing_perc = percent_na_swan) %>%
+  ggplot(aes(x = reorder(building, -missing_perc), y = missing_perc)) +
+  geom_col(fill = "purple") +
+  coord_flip() +
+  labs(title = "Missing % for Swan Buildings", x = "Building", y = "% Missing")
+
+# Remove Swan buildings
+electricity_cleaned <- electricity_cleaned %>%
+  select(-starts_with("Swan"))
+```
+Buildings associated with the "Swan" site displayed over 50% missing readings.
+To maintain data quality and avoid introducing noise, these buildings were systematically removed from the dataset.
+This decision preserves the integrity of the final cleaned dataset.
+
+
+
+# Near-Zero Value Handling
+
+Near-zero meter readings (<0.01) were replaced with NA as they indicate faulty measurements.
+
+```{r}
+small_value_threshold <- 0.01
+electricity_cleaned[, -1] <- electricity_cleaned[, -1] %>%
+  mutate(across(everything(), ~ ifelse(!is.na(.x) & .x < small_value_threshold, NA, .x)))
+```
+
+Near-zero readings (less than 0.01 kWh) were assumed to indicate faulty sensors or low-activity periods unlikely to represent real consumption.
+Replacing these values with NA prevents misleading low-consumption trends in downstream modeling.
+
+# Energy Usage by Building and Type
+
+## Top 20 Buildings with Highest Consumption
+
+```{r}
+building_means <- colMeans(electricity_cleaned[, -1], na.rm = TRUE)
+building_summary <- tibble(building = names(building_means), mean_usage = building_means)
+
+top20_buildings <- building_summary %>%
+  arrange(desc(mean_usage)) %>%
+  slice_head(n = 20)
+
+ggplot(top20_buildings, aes(x = reorder(building, mean_usage), y = mean_usage, fill = mean_usage)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "skyblue", high = "darkblue") +
+  labs(title = "Top 20 Buildings by Abnormal Energy Usage",
+       subtitle = "Higher Energy Users Highlighted with Darker Colors",
+       x = "Building",
+       y = "Average Meter Reading (kWh)")
+```
+The top 20 highest-consuming buildings were identified based on their average electricity usage.
+These buildings exhibit significantly higher energy demands, likely reflecting operational factors such as building size, hours of operation, or equipment load.
+
+
+
+## Energy Usage by Building Type
+
+```{r}
+building_summary_full <- building_info %>%
+  left_join(building_summary, by = "building")
+
+type_summary <- building_summary_full %>%
+  group_by(type) %>%
+  summarise(avg_energy_usage = mean(mean_usage, na.rm = TRUE)) %>%
+  arrange(desc(avg_energy_usage)) %>%
+  filter(type != "unknown")
+
+ggplot(type_summary, aes(x = reorder(type, avg_energy_usage), y = avg_energy_usage, fill = avg_energy_usage)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+  labs(title = "Average Energy Usage by Building Type",
+       subtitle = "Darker Colors Represent Higher Energy Consumption",
+       x = "Building Type",
+       y = "Average Meter Reading (kWh)")
+
+```
+
+When aggregated by building type, education and assembly buildings showed the highest average energy usage.
+This is consistent with expectations, as these types often involve large spaces, high occupancy, and intensive HVAC requirements.
+
+
+# Time Series Analysis: Hourly Trends
+
+```{r}
+electricity_time_avg <- electricity_cleaned %>%
+  mutate(avg_usage = rowMeans(select(., -timestamp), na.rm = TRUE)) %>%
+  select(timestamp, avg_usage) %>%
+  mutate(hour = hour(timestamp),
+         weekday = wday(timestamp, label = TRUE),
+         is_weekend = if_else(weekday %in% c("Sat", "Sun"), TRUE, FALSE))
+
+usage_by_hour <- electricity_time_avg %>%
+  group_by(hour) %>%
+  summarise(avg_hourly_usage = mean(avg_usage, na.rm = TRUE))
+
+ggplot(usage_by_hour, aes(x = hour, y = avg_hourly_usage)) +
+  geom_line(color = "royalblue", size = 1.2) +
+  geom_point(color = "darkred", size = 2) +
+  labs(title = "Average Energy Usage by Hour of Day",
+       subtitle = "Hourly Energy Consumption Trends",
+       x = "Hour of Day",
+       y = "Average Meter Reading (kWh)")
+```
+Energy usage peaks during regular working hours (approximately 8 AM to 6 PM), and declines overnight.
+This pattern suggests strong diurnal behavior across the dataset, reinforcing the presence of human-driven energy cycles.
+Persistent energy consumption during nighttime could indicate baseline loads from critical infrastructure.
+
+
+
+# External Factors: Impact of Temperature
+
+```{r}
+electricity_weather <- electricity_time_avg %>%
+  left_join(weather, by = "timestamp") %>%
+  filter(!is.na(airTemperature), !is.na(avg_usage))
+
+ggplot(electricity_weather, aes(x = airTemperature, y = avg_usage)) +
+  geom_point(alpha = 0.3, color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Relationship between Energy Usage and Air Temperature",
+       x = "Air Temperature (°C)",
+       y = "Average Meter Reading (kWh)")
+```
+A positive relationship was observed between air temperature and energy usage, suggesting higher electricity consumption during warmer periods.
+This trend likely reflects increased cooling demands (e.g., air conditioning usage), validating external weather as an important predictive feature.
+
+
+
+# Final Dataset Export
+
+```{r}
+threshold <- ncol(electricity_cleaned) * 0.9
+electricity_final <- electricity_cleaned %>%
+  filter(rowSums(is.na(.)) < threshold)
+
+write_csv(electricity_final, "data/electricity_final_clean_V2.csv")
+```
+
+
+
+# Conclusion
+
+The data cleaning process successfully addressed timestamp issues, sensor noise, and missing values.
+Through exploratory data analysis, we identified high-energy-consuming buildings and observed significant seasonal and daily patterns affecting energy usage.
+External temperature was found to correlate with increased electricity consumption, likely due to cooling demands during warmer months.
