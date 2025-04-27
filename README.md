@@ -21,8 +21,8 @@ This project developed a building energy consumption forecasting model using XGB
 ├── scripts/             # All Python scripts
 │   ├── utils.py                # Utility functions (splitting, loading)
 │   ├── Genome_P2.R             # Exploratory data analysis and visualization (in R)
-│   ├── Genome_EDA.Rmd          # Data cleaning and EDA reporting
-│   ├── data_cleaning.py        # Data cleaning and preprocessing 
+│   ├── Genome_EDA.Rmd          # Data cleaning and EDA Markdown
+│   ├── data_cleaning.py        # preprocessing before modelling 
 │   ├── feature_engineering.py  # Feature creation (lags, datetime, rolling stats), merge datasets
 │   ├── xgboost_modelling.py    # XGBoost model training and evaluation
 │   ├── neural_network_modelling.py # Neural Network model training and evaluation
