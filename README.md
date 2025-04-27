@@ -36,18 +36,23 @@ including XGBoost and Neural Networks. It also simulates energy savings and sens
 ---
 ## 📈 Project Flow Overview
 
+<details open>
+<summary>Click to expand Project Flowchart</summary>
+
 ```mermaid
 flowchart TD
     A([Raw Data - CSV]) --> B([Data Cleaning])
     B --> C([Feature Engineering])
     C --> D([Model Training - XGBoost/Neural Network])
-    D --> E([Model Evaluation - RMSE, MAE, R])
+    D --> E([Model Evaluation - RMSE, MAE, R²])
     E --> F([Visualization & Analysis - SHAP, Residuals, Trends])
     F --> G([Simulations - Energy Savings, Hotter Summer Impact])
 
     style A fill:#f9f,stroke:#333,stroke-width:1px
     style G fill:#bbf,stroke:#333,stroke-width:1px
 ```
+</details>
+
 
 ## 🚀 Setup Instructions
 
@@ -96,6 +101,40 @@ make all
 - **Model Performance Evaluation** (RMSE, MAE, R²)
 
 ---
+
+## 📈 Example Plots
+
+<details open>
+<summary>1. Actual vs Predicted Scatter (XGBoost)</summary>
+
+![Actual vs Predicted](plots/xgboost/actual_vs_predicted.png)
+
+Shows the relationship between true and predicted energy consumption values.
+
+</details>
+
+---
+
+<details>
+<summary>2. SHAP Feature Importance</summary>
+
+![SHAP Summary](plots/xgboost/shap_summary.png)
+
+Explains which features most impacted model predictions.
+
+</details>
+
+---
+
+<details>
+<summary>3. Seasonal Energy Trends</summary>
+
+![Seasonal Energy Trends](plots/xgboost/seasonal_energy_trends.png)
+
+Projects the impact of an 8°C temperature rise on energy consumption.
+
+</details>
+
 
 ## 📈 Example Outputs
 
