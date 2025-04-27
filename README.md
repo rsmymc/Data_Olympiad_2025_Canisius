@@ -85,8 +85,21 @@ or use **Makefile**:
 make all
 ```
 3. **Alternatively, Run the Full Pipeline in Jupyter Notebook**
----
+```bash
+Race to Energy Efficiency
+```
+> 📓 **Notebook = Code + Report + Analysis**  
 
+The notebook is not just for code execution — it also serves as a detailed **report** containing:
+
+- ✅ Step-by-step **explanations** alongside code
+- 📈 **Visualizations** (plots, SHAP graphs, residual analysis)
+- 💬 **Commentary and interpretations** of results
+- 📚 **Business insights and recommendations** based on model outputs
+- 🎯 **Full pipeline walkthrough**: from raw data to insights and simulations
+
+Ideal for **review, deeper understanding**, or **presentation purposes**!
+---
 ## 🧠 Core Scripts
 
 | Script                        | Purpose                                                                           |
@@ -173,9 +186,16 @@ Explains which features most impacted model predictions.
 
 ## 👨‍💻 Contributors
 
-- Julia Hise (hisej@canisius.edu)
-- Edidiong Ibokete (iboketee@canisius.edu)
-- Nuzaif Naveed (naveedn@canisius.edu)
-- Rasim Yamac (yamacr@canisius.edu)
+- **Edidiong Ibokete** ([iboketee@canisius.edu](mailto:iboketee@canisius.edu))  
+   Predictive Modeling Lead and Business Insight Development
+
+- **Julia Hise** ([hisej@canisius.edu](mailto:hisej@canisius.edu))  
+  Business Insight Development and Reporting
+
+- **Nuzaif Naveed** ([naveedn@canisius.edu](mailto:naveedn@canisius.edu))  
+  Exploratory Data Analysis and Data Preparation
+
+- **Rasim Yamac** ([yamacr@canisius.edu](mailto:yamacr@canisius.edu))  
+  Predictive Modeling and Repository Development and Management
 
 ---
