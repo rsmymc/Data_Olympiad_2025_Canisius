@@ -1,132 +1,120 @@
+import logging
 import pandas as pd
 import numpy as np
+from tensorflow.keras.models import Sequential
+from tensorflow.keras import layers, models, callbacks
 import joblib
-import logging
 from pathlib import Path
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
-from feature_engineering import apply_feature_level
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# ---------------- CONFIG ----------------
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-FEATURE_LEVEL = 4
-BASE_DIR = Path(__file__).resolve().parent.parent
-INPUT_PATH = BASE_DIR / "data/processed/electricity_data_long_clean_reduced.csv"
+from script.plots import plot_actual_vs_predicted
 
-FEATURE_COLUMNS_BY_LEVEL = {
-    1: ['hour', 'dayofweek', 'month', 'is_weekend', 'building_id_encoded'],
-    2: ['hour', 'dayofweek', 'month', 'is_weekend', 'season_encoded', 'building_id_encoded'],
-    3: ['hour', 'dayofweek', 'month', 'is_weekend', 'season_encoded', 'building_id_encoded', 'sqm', 'year_built',
-        'primary_space_usage_encoded', 'latitude', 'longitude'],
-    4: ['hour', 'dayofweek', 'month', 'is_weekend', 'season_encoded', 'building_id_encoded',
-        'sqm', 'year_built', 'primary_space_usage_encoded', 'latitude', 'longitude',
-        'airTemperature', 'cloudCoverage', 'dewTemperature', 'precipDepth1HR',
-        'precipDepth6HR', 'seaLvlPressure', 'windDirection', 'windSpeed']
-}
 
-# -----------------------------------------
+def split_train_test(df, feature_cols, target_col='log_meter_reading', split_date='2017-01-01'):
+    logging.info(f"Splitting dataset based on date: {split_date}")
+    df['date'] = pd.to_datetime(df['date'])
+    train_df = df[df['date'] < split_date]
+    test_df = df[df['date'] >= split_date]
+    X_train = train_df[feature_cols]
+    y_train = train_df[target_col]
+    X_test = test_df[feature_cols]
+    y_test = test_df[target_col]
+    return X_train, X_test, y_train, y_test
 
-def encode_building_id(df):
-    logging.info("Encoding building_id as numeric labels...")
-    le = LabelEncoder()
-    df['building_id_encoded'] = le.fit_transform(df['building_id'])
-    return df, le
-
-def build_neural_network(input_dim):
-    model = Sequential([
-        Dense(64, activation='relu', input_shape=(input_dim,)),
-        Dense(32, activation='relu'),
-        Dense(1)
+def build_model(input_dim):
+    model = models.Sequential([
+        layers.Dense(128, activation='relu', input_shape=(input_dim,)),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(1)
     ])
-
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
+    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
     return model
 
-def train_model(df, feature_level):
-    feature_cols = FEATURE_COLUMNS_BY_LEVEL.get(feature_level)
-    feature_cols = [col for col in feature_cols if col in df.columns]
-    X = df[feature_cols]
-    y = df['consumption_kwh']
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    X_train_full, X_test, y_train_full, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-    X_train, X_val, y_train, y_val = train_test_split(X_train_full, y_train_full, test_size=0.2, random_state=42)
-
-    model = build_neural_network(input_dim=X_train.shape[1])
-    history = model.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
-        epochs=50,
-        batch_size=32,
-        verbose=1
-    )
-
-    logging.info("Evaluating Neural Network model...")
-    y_pred = model.predict(X_test).flatten()
-
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    r2 = r2_score(y_test, y_pred)
-
-    logging.info(f"Feature Level {FEATURE_LEVEL} - MAE: {mae:.4f}")
-    logging.info(f"Feature Level {FEATURE_LEVEL} - RMSE: {rmse:.4f}")
-    logging.info(f"Feature Level {FEATURE_LEVEL} - R2 Score: {r2:.4f}")
-
-    predictions_df = pd.DataFrame({
-        "y_true": y_test.values,
-        "y_pred": y_pred
-    })
-
-    return model, scaler, mae, rmse, r2, predictions_df
-
-def save_training_outputs(model, building_id_encoder, scaler, predictions_df, feature_level, mae, rmse, r2):
-    models_dir = BASE_DIR / "models"
-    results_dir = BASE_DIR / "results"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    results_dir.mkdir(parents=True, exist_ok=True)
-
-    model.save(models_dir / f"neural_network_model_level{feature_level}.h5")
-    joblib.dump(building_id_encoder, models_dir / f"building_id_encoder_level{feature_level}.pkl")
-    joblib.dump(scaler, models_dir / f"scaler_level{feature_level}.pkl")
-    predictions_df.to_csv(results_dir / f"neural_network_predictions_level{feature_level}.csv", index=False)
-
-    experiment_path = results_dir / "neural_network_training_log.csv"
-    experiment_entry = pd.DataFrame([{
-        "feature_level": feature_level,
-        "mae": mae,
-        "rmse": rmse,
-        "r2": r2
-    }])
-    if experiment_path.exists():
-        existing_data = pd.read_csv(experiment_path)
-
-        if feature_level in existing_data['feature_level'].values:
-            existing_data.loc[existing_data['feature_level'] == feature_level, ['mae', 'rmse', 'r2']] = [mae, rmse, r2]
-        else:
-            existing_data = pd.concat([existing_data, experiment_entry], ignore_index=True)
-
-        existing_data.to_csv(experiment_path, index=False)
-    else:
-        experiment_entry.to_csv(experiment_path, index=False)
-
-    logging.info(f"Saved all outputs for Level {feature_level}")
-
-def main():
-    logging.info(f"Loading electricity data from: {INPUT_PATH}")
-    df = pd.read_csv(INPUT_PATH, parse_dates=['timestamp'])
-
-    df = apply_feature_level(df, level=FEATURE_LEVEL)
-    df, building_id_encoder = encode_building_id(df)
-
-    model, scaler, mae, rmse, r2, predictions_df = train_model(df, FEATURE_LEVEL)
-
-    save_training_outputs(model, building_id_encoder, scaler, predictions_df, FEATURE_LEVEL, mae, rmse, r2)
+def evaluate_model(y_true, y_pred, model_name="Model"):
+    logging.info(f"Evaluating {model_name}...")
+    y_true_inv = np.expm1(y_true)
+    y_pred_inv = np.expm1(y_pred)
+    mse = mean_squared_error(y_true_inv, y_pred_inv)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(y_true_inv, y_pred_inv)
+    r2 = r2_score(y_true_inv, y_pred_inv)
+    logging.info(f"{model_name} RMSE: {rmse:.2f}")
+    logging.info(f"{model_name} MAE: {mae:.2f}")
+    logging.info(f"{model_name} R2: {r2:.4f}")
+    return rmse, mae, r2
 
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    base_dir = Path(__file__).resolve().parent.parent
+    processed_dir = base_dir / "data/processed"
+    models_dir = base_dir / "models"
+    reports_dir = base_dir / "reports"
+    plots_dir = base_dir / "plots"
+
+    models_dir.mkdir(parents=True, exist_ok=True)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load data
+    daily_data_path = processed_dir / "electricity_clean_long.csv"
+    full_df_daily = pd.read_csv(daily_data_path, parse_dates=['date'])
+
+    feature_cols = [
+        'site_id', 'primaryspaceusage', 'sqm', 'yearbuilt', 'lat', 'lng',
+        'airTemperature', 'dewTemperature', 'seaLvlPressure', 'windSpeed',
+        'meter_reading_lag1', 'meter_reading_lag24', 'meter_reading_roll6',
+        'meter_reading_roll12', 'meter_reading_roll24'
+    ]
+
+    X_train, X_test, y_train, y_test = split_train_test(full_df_daily, feature_cols)
+
+    # Standardize features
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # Save the scaler
+    scaler_path = models_dir / "nn_scaler.pkl"
+    joblib.dump(scaler, scaler_path)
+    logging.info(f"Saved scaler to {scaler_path}")
+
+    # Build and train model
+    model = build_model(input_dim=X_train.shape[1])
+    history = model.fit(X_train_scaled, y_train, validation_data=(X_test_scaled, y_test), epochs=50, batch_size=32)
+
+    # Predict
+    y_pred = model.predict(X_test_scaled).flatten()
+
+    # Evaluate
+    rmse, mae, r2 = evaluate_model(y_test, y_pred, model_name="NeuralNetwork")
+
+    # Save model
+    model_path = models_dir / "neural_network_model.h5"
+    model.save(model_path)
+    logging.info(f"Saved neural network model to {model_path}")
+
+    # Save evaluation metrics
+    metrics_path = reports_dir / "nn_metrics.csv"
+    metrics_df = pd.DataFrame({
+        'Model': ['NeuralNetwork'],
+        'RMSE': [rmse],
+        'MAE': [mae],
+        'R2': [r2]
+    })
+    metrics_df.to_csv(metrics_path, index=False)
+    logging.info(f"Saved neural network metrics to {metrics_path}")
+
+    # Plot and save Actual vs Predicted
+    plot_actual_vs_predicted(y_test, y_pred, model_name="Neural Network",
+                             save_path=plots_dir / "neural_network" / "actual_vs_predicted.png")
+
+    # Save predictions
+    preds_df = pd.DataFrame({
+        'y_true': np.expm1(y_test),
+        'y_pred': np.expm1(y_pred)
+    })
+    preds_path = reports_dir / "nn_predictions.csv"
+    preds_df.to_csv(preds_path, index=False)
+    logging.info(f"Saved neural network predictions to {preds_path}")

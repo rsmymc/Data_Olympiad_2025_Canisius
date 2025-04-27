@@ -5,15 +5,8 @@ import joblib
 import logging
 from pathlib import Path
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from script.plots import plot_actual_vs_predicted, plot_feature_importance
+from script.plots import plot_actual_vs_predicted
 
-# ---------------- CONFIG ----------------
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-BASE_DIR = Path(__file__).resolve().parent.parent
-INPUT_PATH = BASE_DIR / "data/processed/electricity_clean_long.csv"
-
-
-# -----------------------------------------
 
 def split_train_test(df, split_date='2017-01-01'):
     """
@@ -89,48 +82,6 @@ def save_model(model, save_path):
     save_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, save_path)
 
-
-def save_training_outputs(model, building_id_encoder, predictions_df, feature_level, mae, rmse, r2):
-    """
-    Save model, encoder, predictions, and experiment results for a feature level.
-    """
-    models_dir = BASE_DIR / "models"
-    results_dir = BASE_DIR / "results"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    results_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save model
-    joblib.dump(model, models_dir / f"xgboost_model_level{feature_level}.pkl")
-
-    # Save encoder
-    joblib.dump(building_id_encoder, models_dir / f"building_id_encoder_level{feature_level}.pkl")
-
-    # Save predictions
-    predictions_df.to_csv(results_dir / f"xgboost_predictions_level{feature_level}.csv", index=False)
-
-    # Save experiment results
-    experiment_path = results_dir / "xgboost_training_log.csv"
-    experiment_entry = pd.DataFrame([{
-        "feature_level": feature_level,
-        "mae": mae,
-        "rmse": rmse,
-        "r2": r2
-    }])
-    if experiment_path.exists():
-        existing_data = pd.read_csv(experiment_path)
-
-        if feature_level in existing_data['feature_level'].values:
-            existing_data.loc[existing_data['feature_level'] == feature_level, ['mae', 'rmse', 'r2']] = [mae, rmse, r2]
-        else:
-            existing_data = pd.concat([existing_data, experiment_entry], ignore_index=True)
-
-        existing_data.to_csv(experiment_path, index=False)
-    else:
-        experiment_entry.to_csv(experiment_path, index=False)
-
-    logging.info(f"Saved all outputs for Level {feature_level}")
-
-
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -157,7 +108,7 @@ def main():
 
     # Save evaluation metrics
     reports_dir.mkdir(parents=True, exist_ok=True)
-    metrics_path = reports_dir / "metrics.csv"
+    metrics_path = reports_dir / "xgboost_metrics.csv"
     metrics_df = pd.DataFrame({
         'Model': ['XGBoost'],
         'RMSE': [rmse],
