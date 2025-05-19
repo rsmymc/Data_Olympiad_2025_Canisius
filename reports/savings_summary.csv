@@ -1,4 +1,0 @@
-Scenario,Total Predicted Energy (kWh),Energy Saved (kWh),Estimated Cost Savings (USD)
-Baseline (No Reduction),71582200.0,0.0,0.0
-10% Reduction,64423980.0,7158220.0,858986.375
-20% Reduction,57265760.0,14316440.0,1717972.75

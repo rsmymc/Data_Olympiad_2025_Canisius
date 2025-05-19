@@ -1,5 +1,3 @@
-# runner.py
-
 import subprocess
 import sys
 import shutil
@@ -7,27 +5,27 @@ from pathlib import Path
 
 def run_data_cleaning():
     print("\n🧹 Running Data Cleaning...")
-    subprocess.run([sys.executable, "data_cleaning.py"])
+    subprocess.run([sys.executable, "data/data_cleaning.py"])
 
 def run_feature_engineering():
     print("\n🛠️ Running Feature Engineering...")
-    subprocess.run([sys.executable, "feature_engineering.py"])
+    subprocess.run([sys.executable, "data/feature_engineering.py"])
 
 def run_xgboost_training():
     print("\n🚀 Running XGBoost Training...")
-    subprocess.run([sys.executable, "xgboost_modelling.py"])
+    subprocess.run([sys.executable, "modelling/xgboost_modelling.py"])
 
 def run_neural_network_training():
     print("\n🧠 Running Neural Network Training...")
-    subprocess.run([sys.executable, "neural_network_modelling.py"])
+    subprocess.run([sys.executable, "modelling/neural_network_modelling.py"])
 
 def run_plotting():
     print("\n🎨 Running Plots Generation...")
-    subprocess.run([sys.executable, "analyzing.py"])
+    subprocess.run([sys.executable, "utilities/analyzing.py"])
 
 def clean_outputs():
     print("\n🧹 Cleaning models/, reports/, plots/ ...")
-    paths_to_clean = ["models", "reports", "plots/xgboost", "plots/neural_network"]
+    paths_to_clean = ["../models", "../reports", "../plots/xgboost", "../plots/neural_network", "../plots/model_comparison"]
 
     for folder_name in paths_to_clean:
         path = Path(folder_name)
